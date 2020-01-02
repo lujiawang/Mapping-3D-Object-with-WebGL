@@ -1,4 +1,3 @@
-// *** CSE 5542 Lab 5 ****** //
 // *** Model information *** //
 
 
