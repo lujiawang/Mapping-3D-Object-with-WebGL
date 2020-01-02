@@ -1,0 +1,158 @@
+<!-- *** CSE 5542 Lab 5 ******** -->
+<!-- *** Author: Lujia Wang **** -->
+<!-- *** Date: December 2019 *** -->
+
+<!doctype html>
+<html>
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=iso-8859-1">
+    <title>CSE 5542 Lujia Wang</title>
+    
+    <script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+    <script type="text/javascript" src="shaders_setup.js"></script>
+    <script type="text/javascript" src="app.js"></script>
+    <script type="text/javascript" src="model.js"></script>
+    <script type="text/javascript" src="ellipsoid.js"></script>
+    <script type="text/javascript" src="skybox.js"></script>
+
+	<!-- ********* Vertex Shader *********-->
+	<script type="x-shader/x-vertex" id="shader-vs">
+		precision mediump float;
+		precision mediump int;
+
+    	attribute vec3 aVertexPosition;
+	    attribute vec3 aVertexNormal;
+	    attribute vec3 aVertexColor;
+	    attribute vec2 aVertexTexCoords;
+
+	    uniform mat4 uMMatrix; 
+	    uniform mat4 uVMatrix;
+	    uniform mat4 uPMatrix;
+	    uniform mat4 uNMatrix; 
+	    uniform mat4 uV2WMatrix;
+
+	    uniform vec4 light_pos; 
+	    uniform vec4 ambient_coef;
+	    uniform vec4 diffuse_coef;
+	    uniform vec4 specular_coef;
+	    uniform float mat_shininess; 
+
+	    uniform vec4 light_ambient; 
+	    uniform vec4 light_diffuse; 
+	    uniform vec4 light_specular;
+
+	    uniform int use_texture;
+	    uniform sampler2D myTexture;
+
+	    varying vec4 eye_pos;  //vertex position in eye space 
+	    varying vec3 v_normal;  // vertex normal
+	    varying vec4 vColor; 
+	    varying highp vec2 FtexCoord;
+
+	    void main(void) {
+
+		    // transform light pos from local to eye space
+		    vec4 light_pos_in_eye = uVMatrix * uMMatrix * light_pos;
+
+		    // transform normal from local to eye space: normal matrix is the inverse transpose of the modelview matrix 
+		    v_normal =normalize(vec3(uNMatrix*vec4(aVertexNormal,0.0)));
+
+		    // transform the vertex position to eye space 
+		    eye_pos = uVMatrix*uMMatrix*vec4(aVertexPosition, 1.0);
+
+		    // light vector L = l-p 
+		    vec3 light_vector = normalize(vec3(light_pos_in_eye - eye_pos)); 
+
+		    // eye vector V = e-p, where e is (0,0,0) 
+		    vec3 eye_vector = normalize(-vec3(eye_pos));
+		        
+		    // halfway vector (L+V) 
+		    vec3 halfv = normalize(light_vector+eye_vector); 
+		       
+		    vec4 ambient = ambient_coef * light_ambient; 
+		    float ndotl = max(dot(v_normal, light_vector), 0.0); 
+
+		    vec4 diffuse = diffuse_coef * light_diffuse* ndotl;
+
+		    vec3 R = normalize(2.0 * ndotl *v_normal-eye_vector);
+		    float rdotv = max(dot(R, eye_vector), 0.0);
+
+		    vec4 specular;  
+		    if (ndotl>0.0) 
+		    	specular = specular_coef* light_specular*pow(rdotv, mat_shininess); 
+		    else
+		        specular = vec4(0,0,0,1);  
+
+		    gl_Position = uPMatrix * uVMatrix * uMMatrix * vec4(aVertexPosition, 1.0);
+
+		    vColor = vec4(aVertexColor, 1.0) + ambient+diffuse+specular;
+		    FtexCoord = aVertexTexCoords;
+	    }
+	</script>
+
+	<!-- ********* Fragment Shader *********-->
+	<script type="x-shader/x-fragment" id="shader-fs">
+		precision mediump float;
+		precision mediump int;
+
+		uniform mat4 uMMatrix; 
+		uniform mat4 uVMatrix;
+		uniform mat4 uPMatrix;
+		uniform mat4 uNMatrix; 
+		uniform mat4 uV2WMatrix;
+
+		uniform vec4 light_pos; 
+		uniform vec4 ambient_coef;
+		uniform vec4 diffuse_coef;
+		uniform vec4 specular_coef;
+		uniform float mat_shininess; 
+
+		uniform vec4 light_ambient; 
+		uniform vec4 light_diffuse; 
+		uniform vec4 light_specular;
+
+		uniform int use_texture;
+		uniform sampler2D myTexture;
+		uniform samplerCube cubeMap;
+
+		varying vec4 eye_pos; 
+		varying vec3 v_normal;
+		varying vec4 vColor; 
+		varying highp vec2 FtexCoord;
+
+		void main(void) {
+			vec3 view_vector, ref;
+			vec4 env_color = vec4(1,0,0,1);
+
+			if (use_texture == 1){
+				gl_FragColor = texture2D(myTexture, FtexCoord);
+			} else if (use_texture == 2){
+				view_vector = normalize(vec3(vec4(0,0,0,1) - eye_pos));
+				ref = normalize(reflect(-view_vector, v_normal));
+				ref = vec3(uV2WMatrix * vec4(ref, 0));
+				env_color = textureCube(cubeMap, ref);
+				
+				gl_FragColor = env_color;
+			} else {
+		  		gl_FragColor =vColor;
+			}
+		  
+		}
+	</script>
+
+
+</head>
+
+<body onLoad="webGLStart();">
+    <canvas id="lab_canvas" style="border: none;" width="700"  height="500"></canvas>
+    <br />
+
+    <h4> Texture:  </h4>
+    <button  onclick="texture(0)"> NO  </button>
+    <button  onclick="texture(1)"> Texture Mapping </button>
+    <button  onclick="texture(2)"> Environment Mapping </button>
+
+</body>
+
+</html>
